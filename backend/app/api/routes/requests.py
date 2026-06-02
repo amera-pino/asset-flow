@@ -9,6 +9,7 @@ from app.schemas.asset_request import ActiveAssetRequestRead, AssetRequestCreate
 from app.schemas.response import ApiResponse, error_response, success_response
 from app.services.asset_request_service import (
     AssetRequestError,
+    cancel_asset_request,
     create_asset_request,
     list_active_asset_requests,
     return_asset_request,
@@ -55,6 +56,22 @@ def return_request(
 ) -> dict | JSONResponse:
     try:
         asset_request = return_asset_request(db, request_id, CURRENT_USER_ID)
+    except AssetRequestError as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_response(exc.code, exc.message),
+        )
+
+    return success_response(AssetRequestRead.model_validate(asset_request))
+
+
+@router.post("/{request_id}/cancel", response_model=ApiResponse[AssetRequestRead])
+def cancel_request(
+    request_id: int,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict | JSONResponse:
+    try:
+        asset_request = cancel_asset_request(db, request_id, CURRENT_USER_ID)
     except AssetRequestError as exc:
         return JSONResponse(
             status_code=exc.status_code,

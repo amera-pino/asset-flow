@@ -5,11 +5,31 @@ import { Link } from "react-router-dom";
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { ActiveAssetRequest, AssetRequest } from "../types/assetRequest";
 
-type StatusFilter = "all" | "貸出中" | "pending";
+type StatusFilter = "all" | "loaned" | "pending";
 const REQUEST_PAGE_SIZE = 20;
 
 function statusDisplayLabel(status: ActiveAssetRequest["status"]) {
-  return status === "pending" ? "承認待ち" : status;
+  if (status === "pending") {
+    return "承認待ち";
+  }
+
+  if (status === "loaned") {
+    return "貸出中";
+  }
+
+  if (status === "returned") {
+    return "返却済み";
+  }
+
+  if (status === "cancelled") {
+    return "キャンセル済み";
+  }
+
+  return status;
+}
+
+function formatRequestId(id: number) {
+  return String(id).padStart(5, "0");
 }
 
 export function MyRequestsPage() {
@@ -20,6 +40,7 @@ export function MyRequestsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [returningRequestId, setReturningRequestId] = useState<number | null>(null);
+  const [cancellingRequestId, setCancellingRequestId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
@@ -34,7 +55,7 @@ export function MyRequestsPage() {
     [activeRequests],
   );
   const loanedCount = useMemo(
-    () => activeRequests.filter((request) => request.status === "貸出中").length,
+    () => activeRequests.filter((request) => request.status === "loaned").length,
     [activeRequests],
   );
   const categories = useMemo(
@@ -122,8 +143,20 @@ export function MyRequestsPage() {
     };
   }, [toastMessage]);
 
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   async function handleReturn(request: ActiveAssetRequest) {
-    if (returningRequestId !== null) {
+    if (returningRequestId !== null || cancellingRequestId !== null) {
+      return;
+    }
+
+    const isConfirmed = window.confirm("この備品を返却してもよろしいですか？");
+
+    if (!isConfirmed) {
       return;
     }
 
@@ -135,7 +168,7 @@ export function MyRequestsPage() {
         method: "POST",
       });
       await fetchActiveRequests();
-      setToastMessage(`${request.asset_name} を返却しました。`);
+      setToastMessage(`返却を受け付けました。申請ID：${formatRequestId(request.id)}`);
     } catch (error) {
       setErrorMessage(error instanceof ApiClientError ? error.message : "返却処理に失敗しました。");
     } finally {
@@ -143,9 +176,31 @@ export function MyRequestsPage() {
     }
   }
 
-  function handleCancelRequest(request: ActiveAssetRequest) {
+  async function handleCancelRequest(request: ActiveAssetRequest) {
+    if (returningRequestId !== null || cancellingRequestId !== null) {
+      return;
+    }
+
+    const isConfirmed = window.confirm("この申請をキャンセルしてもよろしいですか？");
+
+    if (!isConfirmed) {
+      return;
+    }
+
+    setCancellingRequestId(request.id);
     setErrorMessage(null);
-    setToastMessage(`${request.asset_name} の申請キャンセルを受け付けました。`);
+
+    try {
+      await apiFetch<AssetRequest>(`/api/requests/${request.id}/cancel`, {
+        method: "POST",
+      });
+      await fetchActiveRequests();
+      setToastMessage(`キャンセルを受け付けました。申請ID：${formatRequestId(request.id)}`);
+    } catch (error) {
+      setErrorMessage(error instanceof ApiClientError ? error.message : "キャンセル処理に失敗しました。");
+    } finally {
+      setCancellingRequestId(null);
+    }
   }
 
   function handleClearFilters() {
@@ -228,7 +283,7 @@ export function MyRequestsPage() {
                 value={statusFilter}
               >
                 <option value="all">すべての状態</option>
-                <option value="貸出中">貸出中</option>
+                <option value="loaned">貸出中</option>
                 <option value="pending">承認待ち</option>
               </select>
 
@@ -302,10 +357,11 @@ export function MyRequestsPage() {
           {!isLoading && totalCount > 0 ? (
             <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
               <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] border-collapse text-left">
+              <table className="w-full min-w-[980px] border-collapse text-left">
                 <thead className="bg-slate-100 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="w-16 px-5 py-3 font-semibold">No.</th>
+                    <th className="w-28 px-5 py-3 font-semibold">申請ID</th>
                     <th className="px-5 py-3 font-semibold">備品名</th>
                     <th className="px-5 py-3 font-semibold">カテゴリ</th>
                     <th className="w-20 px-5 py-3 font-semibold">数量</th>
@@ -320,6 +376,7 @@ export function MyRequestsPage() {
                       <td className="px-5 py-4 font-medium text-slate-500">
                         {index + 1 + (currentPage - 1) * REQUEST_PAGE_SIZE}
                       </td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{formatRequestId(request.id)}</td>
                       <td className="px-5 py-4 font-medium text-slate-950">{request.asset_name}</td>
                       <td className="px-5 py-4 text-slate-600">{request.asset_category}</td>
                       <td className="px-5 py-4 font-semibold text-slate-950">{request.quantity}</td>
@@ -336,10 +393,10 @@ export function MyRequestsPage() {
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-5 py-4">
-                        {request.status === "貸出中" ? (
+                        {request.status === "loaned" ? (
                           <button
                             className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-md bg-teal-700 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:bg-slate-300"
-                            disabled={returningRequestId !== null}
+                            disabled={returningRequestId !== null || cancellingRequestId !== null}
                             onClick={() => void handleReturn(request)}
                             type="button"
                           >
@@ -347,11 +404,12 @@ export function MyRequestsPage() {
                           </button>
                         ) : (
                           <button
-                            className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-md bg-red-700 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-200"
-                            onClick={() => handleCancelRequest(request)}
+                            className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-md bg-red-700 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            disabled={returningRequestId !== null || cancellingRequestId !== null}
+                            onClick={() => void handleCancelRequest(request)}
                             type="button"
                           >
-                            キャンセル
+                            {cancellingRequestId === request.id ? "処理中" : "キャンセル"}
                           </button>
                         )}
                       </td>

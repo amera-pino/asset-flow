@@ -10,7 +10,7 @@ export type AssetRequestCreate = {
 export type AssetRequest = AssetRequestCreate & {
   id: number;
   user_id: number;
-  status: "pending" | "approved" | "貸出中" | "返却済み" | "rejected" | "cancelled";
+  status: "pending" | "loaned" | "returned" | "cancelled";
   returned_at: string | null;
   created_at: string;
   updated_at: string;

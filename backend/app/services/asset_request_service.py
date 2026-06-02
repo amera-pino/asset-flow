@@ -37,6 +37,11 @@ class AssetRequestReturnError(AssetRequestError):
     status_code = 409
 
 
+class AssetRequestCancelError(AssetRequestError):
+    code = "ASSET_REQUEST_NOT_CANCELABLE"
+    status_code = 409
+
+
 def create_asset_request(db: Session, payload: AssetRequestCreate) -> AssetRequest:
     with db.begin():
         asset = db.scalar(
@@ -114,6 +119,30 @@ def return_asset_request(db: Session, request_id: int, user_id: int = 1) -> Asse
 
         asset_request.status = AssetRequestStatus.returned
         asset_request.returned_at = datetime.now(UTC)
+        db.flush()
+        db.refresh(asset_request)
+
+        return asset_request
+
+
+def cancel_asset_request(db: Session, request_id: int, user_id: int = 1) -> AssetRequest:
+    with db.begin():
+        asset_request = db.scalar(
+            select(AssetRequest)
+            .where(
+                AssetRequest.id == request_id,
+                AssetRequest.user_id == user_id,
+            )
+            .with_for_update()
+        )
+
+        if asset_request is None:
+            raise ActiveAssetRequestNotFoundError("対象の貸出申請が見つかりません。")
+
+        if asset_request.status != AssetRequestStatus.pending:
+            raise AssetRequestCancelError("承認待ちの申請のみキャンセルできます。")
+
+        asset_request.status = AssetRequestStatus.cancelled
         db.flush()
         db.refresh(asset_request)
 

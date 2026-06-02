@@ -7,7 +7,6 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -22,10 +21,8 @@ from app.core.database import Base
 
 class AssetRequestStatus(StrEnum):
     pending = "pending"
-    approved = "approved"
-    loaned = "貸出中"
-    returned = "返却済み"
-    rejected = "rejected"
+    loaned = "loaned"
+    returned = "returned"
     cancelled = "cancelled"
 
 
@@ -52,14 +49,10 @@ class AssetRequest(Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[AssetRequestStatus] = mapped_column(
-        Enum(
-            AssetRequestStatus,
-            name="asset_request_status",
-            values_callable=lambda statuses: [status.value for status in statuses],
-        ),
+    status: Mapped[str] = mapped_column(
+        String(40),
         nullable=False,
-        default=AssetRequestStatus.pending,
+        default=AssetRequestStatus.pending.value,
     )
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
