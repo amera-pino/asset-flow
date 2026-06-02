@@ -83,7 +83,12 @@ def list_active_asset_requests(db: Session, user_id: int = 1) -> list[tuple[Asse
             .join(Asset, Asset.id == AssetRequest.asset_id)
             .where(
                 AssetRequest.user_id == user_id,
-                AssetRequest.status == AssetRequestStatus.loaned,
+                AssetRequest.status.in_(
+                    [
+                        AssetRequestStatus.loaned,
+                        AssetRequestStatus.pending,
+                    ]
+                ),
             )
             .order_by(AssetRequest.end_date.asc(), AssetRequest.id.asc())
         ).all()

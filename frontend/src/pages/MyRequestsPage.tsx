@@ -1,12 +1,23 @@
-import { CalendarDays, PackageCheck, RotateCcw, UserRound } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, PackageCheck, RefreshCw, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { ActiveAssetRequest, AssetRequest } from "../types/assetRequest";
 
+type StatusFilter = "all" | "貸出中" | "pending";
+const REQUEST_PAGE_SIZE = 20;
+
+function statusDisplayLabel(status: ActiveAssetRequest["status"]) {
+  return status === "pending" ? "承認待ち" : status;
+}
+
 export function MyRequestsPage() {
   const [activeRequests, setActiveRequests] = useState<ActiveAssetRequest[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [query, setQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [returningRequestId, setReturningRequestId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -17,6 +28,50 @@ export function MyRequestsPage() {
     const data = await apiFetch<ActiveAssetRequest[]>("/api/requests/me/active", { signal });
     setActiveRequests(data);
   }, []);
+
+  const pendingCount = useMemo(
+    () => activeRequests.filter((request) => request.status === "pending").length,
+    [activeRequests],
+  );
+  const loanedCount = useMemo(
+    () => activeRequests.filter((request) => request.status === "貸出中").length,
+    [activeRequests],
+  );
+  const categories = useMemo(
+    () => Array.from(new Set(activeRequests.map((request) => request.asset_category))).sort(),
+    [activeRequests],
+  );
+  const filteredRequests = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return activeRequests.filter((request) => {
+      const matchesStatus = statusFilter === "all" || request.status === statusFilter;
+      const matchesCategory = !selectedCategory || request.asset_category === selectedCategory;
+      const matchesQuery =
+        !normalizedQuery ||
+        request.asset_name.toLowerCase().includes(normalizedQuery) ||
+        request.asset_category.toLowerCase().includes(normalizedQuery);
+
+      return matchesStatus && matchesCategory && matchesQuery;
+    });
+  }, [activeRequests, query, selectedCategory, statusFilter]);
+  const totalCount = filteredRequests.length;
+  const totalPages = Math.max(Math.ceil(totalCount / REQUEST_PAGE_SIZE), 1);
+  const paginatedRequests = useMemo(
+    () => filteredRequests.slice((currentPage - 1) * REQUEST_PAGE_SIZE, currentPage * REQUEST_PAGE_SIZE),
+    [currentPage, filteredRequests],
+  );
+  const visibleStart = totalCount === 0 ? 0 : (currentPage - 1) * REQUEST_PAGE_SIZE + 1;
+  const visibleEnd = totalCount === 0 ? 0 : visibleStart + paginatedRequests.length - 1;
+  const paginationPages = useMemo(() => {
+    const startPage = Math.max(1, Math.min(currentPage - 1, totalPages - 2));
+    const endPage = Math.min(totalPages, startPage + 2);
+
+    return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
+  }, [currentPage, totalPages]);
+  const displayUserName = activeRequests[0]?.requester_name
+    ? `${activeRequests[0].requester_name} (ID: 1)`
+    : "テストユーザー (ID: 1)";
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -88,30 +143,65 @@ export function MyRequestsPage() {
     }
   }
 
+  function handleCancelRequest(request: ActiveAssetRequest) {
+    setErrorMessage(null);
+    setToastMessage(`${request.asset_name} の申請キャンセルを受け付けました。`);
+  }
+
+  function handleClearFilters() {
+    setStatusFilter("all");
+    setSelectedCategory("");
+    setQuery("");
+    setCurrentPage(1);
+  }
+
+  function handlePageChange(page: number) {
+    const nextPage = Math.max(1, Math.min(page, totalPages));
+
+    if (nextPage === currentPage) {
+      return;
+    }
+
+    setCurrentPage(nextPage);
+    window.scrollTo({ top: 0 });
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-6 py-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-teal-700">AssetFlow</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">マイ貸出状況</h1>
-          </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-6">
+        <header className="border-b border-slate-200 pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div>
+                <p className="text-sm font-medium text-teal-700">AssetFlow</p>
+                <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">マイ貸出状況</h1>
+              </div>
 
-          <nav aria-label="メインナビゲーション" className="flex flex-wrap gap-2">
-            <Link
-              className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-              to="/"
-            >
-              備品一覧
-            </Link>
-            <Link
-              aria-current="page"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-medium text-white shadow-sm"
-              to="/my-requests"
-            >
-              マイ貸出状況
-            </Link>
-          </nav>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">ログインユーザー</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{displayUserName}</p>
+              </div>
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">承認待ち</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{pendingCount}</p>
+              </div>
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">貸出中</p>
+                <p className="mt-1 text-lg font-semibold text-slate-950">{loanedCount}</p>
+                </div>
+              </div>
+            </div>
+
+            <nav aria-label="メインナビゲーション" className="flex flex-wrap justify-start gap-2 lg:justify-end">
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/"
+              >
+                備品一覧
+              </Link>
+            </nav>
+          </div>
         </header>
 
         {toastMessage ? (
@@ -124,98 +214,197 @@ export function MyRequestsPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-md border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs text-slate-500">ログインユーザー</p>
-            <p className="mt-1 text-lg font-semibold text-slate-950">user_id = 1</p>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs text-slate-500">現在貸出中</p>
-            <p className="mt-1 text-lg font-semibold text-slate-950">{activeRequests.length}</p>
-          </div>
-          <div className="rounded-md border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs text-slate-500">返却待ち数量</p>
-            <p className="mt-1 text-lg font-semibold text-slate-950">
-              {activeRequests.reduce((total, request) => total + request.quantity, 0)}
-            </p>
-          </div>
-        </section>
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex w-full flex-col gap-3 md:max-w-3xl md:flex-row">
+              <select
+                aria-label="ステータスで絞り込み"
+                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 md:w-40"
+                id="request-status-filter"
+                onChange={(event) => {
+                  setStatusFilter(event.target.value as StatusFilter);
+                  setCurrentPage(1);
+                }}
+                value={statusFilter}
+              >
+                <option value="all">すべての状態</option>
+                <option value="貸出中">貸出中</option>
+                <option value="pending">承認待ち</option>
+              </select>
 
-        {errorMessage ? (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        ) : null}
+              <select
+                aria-label="カテゴリで絞り込み"
+                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100 md:w-44"
+                onChange={(event) => {
+                  setSelectedCategory(event.target.value);
+                  setCurrentPage(1);
+                }}
+                value={selectedCategory}
+              >
+                <option value="">すべてのカテゴリ</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
 
-        {isLoading ? (
-          <div className="rounded-md border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500">
-            貸出状況を読み込み中...
-          </div>
-        ) : null}
-
-        {!isLoading && activeRequests.length === 0 ? (
-          <section className="rounded-md border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-sm">
-            <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-slate-100 text-slate-500">
-              <PackageCheck className="size-6" />
+              <label className="relative block w-full md:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="h-11 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="備品名で検索..."
+                  type="search"
+                  value={query}
+                />
+              </label>
             </div>
-            <p className="mt-4 text-sm font-medium text-slate-700">現在、あなたが借りている備品はありません。</p>
-          </section>
-        ) : null}
 
-        {!isLoading && activeRequests.length > 0 ? (
-          <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-base font-semibold text-slate-950">貸出中の備品</h2>
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              onClick={handleClearFilters}
+              type="button"
+            >
+              <RefreshCw className="size-4" />
+              クリア
+            </button>
+          </div>
+
+          {errorMessage ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
             </div>
+          ) : null}
 
-            <div className="divide-y divide-slate-200">
-              {activeRequests.map((request) => (
-                <article className="grid gap-4 px-5 py-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={request.id}>
-                  <div className="flex gap-4">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-md bg-teal-50 text-teal-700">
-                      <PackageCheck className="size-5" />
-                    </div>
+          {isLoading ? (
+            <div className="rounded-md border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500">
+              貸出状況を読み込み中...
+            </div>
+          ) : null}
 
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-slate-950">{request.asset_name}</h3>
-                        <span className="inline-flex rounded-md bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700">
-                          {request.status}
+          {!isLoading && totalCount === 0 ? (
+            <section className="rounded-md border border-dashed border-slate-300 bg-white px-6 py-12 text-center shadow-sm">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                <PackageCheck className="size-6" />
+              </div>
+              <p className="mt-4 text-sm font-medium text-slate-700">
+                {activeRequests.length === 0
+                  ? "現在、あなたが借りている備品はありません。"
+                  : "選択したステータスの備品はありません。"}
+              </p>
+            </section>
+          ) : null}
+
+          {!isLoading && totalCount > 0 ? (
+            <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse text-left">
+                <thead className="bg-slate-100 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="w-16 px-5 py-3 font-semibold">No.</th>
+                    <th className="px-5 py-3 font-semibold">備品名</th>
+                    <th className="px-5 py-3 font-semibold">カテゴリ</th>
+                    <th className="w-20 px-5 py-3 font-semibold">数量</th>
+                    <th className="w-56 px-5 py-3 font-semibold">貸出期間</th>
+                    <th className="w-28 px-5 py-3 font-semibold">状態</th>
+                    <th className="w-36 px-5 py-3 font-semibold">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-sm">
+                  {paginatedRequests.map((request, index) => (
+                    <tr className="transition hover:bg-teal-50/50" key={request.id}>
+                      <td className="px-5 py-4 font-medium text-slate-500">
+                        {index + 1 + (currentPage - 1) * REQUEST_PAGE_SIZE}
+                      </td>
+                      <td className="px-5 py-4 font-medium text-slate-950">{request.asset_name}</td>
+                      <td className="px-5 py-4 text-slate-600">{request.asset_category}</td>
+                      <td className="px-5 py-4 font-semibold text-slate-950">{request.quantity}</td>
+                      <td className="px-5 py-4 text-slate-600">
+                        {request.start_date} - {request.end_date}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-md px-2 py-1 text-xs font-medium ${
+                            request.status === "pending" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"
+                          }`}
+                        >
+                          {statusDisplayLabel(request.status)}
                         </span>
-                      </div>
-                      <p className="mt-1 text-sm text-slate-600">
-                        {request.asset_category} / 数量 {request.quantity}
-                      </p>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4">
+                        {request.status === "貸出中" ? (
+                          <button
+                            className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-md bg-teal-700 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:bg-slate-300"
+                            disabled={returningRequestId !== null}
+                            onClick={() => void handleReturn(request)}
+                            type="button"
+                          >
+                            {returningRequestId === request.id ? "返却中" : "返却"}
+                          </button>
+                        ) : (
+                          <button
+                            className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-md bg-red-700 px-4 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-200"
+                            onClick={() => handleCancelRequest(request)}
+                            type="button"
+                          >
+                            キャンセル
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+              <div className="flex items-center justify-end gap-4 border-t border-slate-200 px-5 py-3">
+                <p className="text-sm text-slate-500">{visibleStart} - {visibleEnd} / {totalCount}</p>
 
-                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <CalendarDays className="size-4 text-slate-400" />
-                          <span>
-                            {request.start_date} - {request.end_date}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <UserRound className="size-4 text-slate-400" />
-                          <span>{request.requester_name}</span>
-                        </div>
-                      </dl>
-                    </div>
-                  </div>
-
+                <div className="flex items-center gap-1">
                   <button
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:bg-slate-300 md:w-32"
-                    disabled={returningRequestId !== null}
-                    onClick={() => void handleReturn(request)}
+                    aria-label="前のページ"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                    disabled={currentPage <= 1 || isLoading}
+                    onClick={() => handlePageChange(currentPage - 1)}
                     type="button"
                   >
-                    <RotateCcw className="size-4" />
-                    {returningRequestId === request.id ? "返却中..." : "返却する"}
+                    <ChevronLeft className="size-4" />
                   </button>
-                </article>
-              ))}
+
+                  {paginationPages.map((page) => (
+                    <button
+                      aria-current={currentPage === page ? "page" : undefined}
+                      className={`inline-flex size-9 items-center justify-center rounded-md border text-sm font-medium transition ${
+                        currentPage === page
+                          ? "border-teal-700 bg-teal-700 text-white"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                      }`}
+                      disabled={isLoading}
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      type="button"
+                    >
+                      {page}
+                    </button>
+                  ))}
+
+                  <button
+                    aria-label="次のページ"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                    disabled={currentPage >= totalPages || isLoading}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    type="button"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </section>
-        ) : null}
+          ) : null}
+        </section>
       </div>
     </main>
   );
