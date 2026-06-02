@@ -23,6 +23,8 @@ from app.core.database import Base
 class AssetRequestStatus(StrEnum):
     pending = "pending"
     approved = "approved"
+    loaned = "貸出中"
+    returned = "返却済み"
     rejected = "rejected"
     cancelled = "cancelled"
 
@@ -35,6 +37,7 @@ class AssetRequest(Base):
         CheckConstraint("length(requester_name) > 0", name="ck_asset_requests_requester_name_not_empty"),
         CheckConstraint("length(reason) > 0", name="ck_asset_requests_reason_not_empty"),
         Index("ix_asset_requests_asset_id_status", "asset_id", "status"),
+        Index("ix_asset_requests_user_id_status", "user_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -44,15 +47,21 @@ class AssetRequest(Base):
         index=True,
     )
     requester_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, default=1, index=True)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[AssetRequestStatus] = mapped_column(
-        Enum(AssetRequestStatus, name="asset_request_status"),
+        Enum(
+            AssetRequestStatus,
+            name="asset_request_status",
+            values_callable=lambda statuses: [status.value for status in statuses],
+        ),
         nullable=False,
         default=AssetRequestStatus.pending,
     )
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
