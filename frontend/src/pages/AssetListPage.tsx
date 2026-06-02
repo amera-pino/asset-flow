@@ -195,18 +195,36 @@ export function AssetListPage() {
             <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">備品一覧</h1>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:flex">
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">取扱品目数</p>
-              <p className="mt-1 text-lg font-semibold">{totalItemCount}</p>
-            </div>
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">総在庫数</p>
-              <p className="mt-1 text-lg font-semibold">{totalStock}</p>
-            </div>
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">要確認</p>
-              <p className="mt-1 text-lg font-semibold text-red-600">{lowStockCount}</p>
+          <div className="flex flex-col gap-3">
+            <nav aria-label="メインナビゲーション" className="flex flex-wrap justify-start gap-2 md:justify-end">
+              <Link
+                aria-current="page"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-medium text-white shadow-sm"
+                to="/"
+              >
+                備品一覧
+              </Link>
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/my-requests"
+              >
+                マイ貸出状況
+              </Link>
+            </nav>
+
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
+                <p className="text-xs text-slate-500">取扱品目数</p>
+                <p className="mt-1 text-lg font-semibold">{totalItemCount}</p>
+              </div>
+              <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
+                <p className="text-xs text-slate-500">総在庫数</p>
+                <p className="mt-1 text-lg font-semibold">{totalStock}</p>
+              </div>
+              <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
+                <p className="text-xs text-slate-500">要確認</p>
+                <p className="mt-1 text-lg font-semibold text-red-600">{lowStockCount}</p>
+              </div>
             </div>
           </div>
         </header>

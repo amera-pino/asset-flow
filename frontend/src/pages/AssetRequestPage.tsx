@@ -1,6 +1,6 @@
 import { CalendarDays, PackageSearch } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { Asset } from "../types/asset";
@@ -197,6 +197,20 @@ export function AssetRequestPage() {
               <p className="text-sm font-medium text-teal-700">AssetFlow</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">備品貸出申請</h1>
             </div>
+            <nav aria-label="メインナビゲーション" className="flex flex-wrap gap-2 md:justify-end">
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/"
+              >
+                備品一覧
+              </Link>
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/my-requests"
+              >
+                マイ貸出状況
+              </Link>
+            </nav>
           </div>
         </header>
 
