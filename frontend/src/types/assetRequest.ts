@@ -9,7 +9,14 @@ export type AssetRequestCreate = {
 
 export type AssetRequest = AssetRequestCreate & {
   id: number;
-  status: "pending" | "approved" | "rejected" | "cancelled";
+  user_id: number;
+  status: "pending" | "approved" | "貸出中" | "返却済み" | "rejected" | "cancelled";
+  returned_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ActiveAssetRequest = AssetRequest & {
+  asset_name: string;
+  asset_category: string;
 };
