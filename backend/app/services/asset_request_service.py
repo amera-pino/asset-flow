@@ -53,16 +53,21 @@ def create_asset_request(db: Session, payload: AssetRequestCreate) -> AssetReque
         if asset is None:
             raise AssetNotFoundError("指定された備品が見つかりません。")
 
-        pending_quantity = db.scalar(
+        consuming_quantity = db.scalar(
             select(func.coalesce(func.sum(AssetRequest.quantity), 0)).where(
                 AssetRequest.asset_id == payload.asset_id,
-                AssetRequest.status == AssetRequestStatus.pending,
+                AssetRequest.status.in_(
+                    [
+                        AssetRequestStatus.pending,
+                        AssetRequestStatus.loaned,
+                    ]
+                ),
             )
         )
-        available_quantity = asset.current_stock - int(pending_quantity or 0)
+        available_quantity = asset.current_stock - int(consuming_quantity or 0)
 
         if available_quantity < payload.quantity:
-            raise InsufficientReservedStockError("現在、他の方が申請中のため在庫が不足しています")
+            raise InsufficientReservedStockError("現在、他の方が申請中または貸出中のため在庫が不足しています")
 
         asset_request = AssetRequest(
             asset_id=payload.asset_id,

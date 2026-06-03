@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,10 +9,42 @@ from app.core.database import get_db
 from app.models.asset import Asset
 from app.models.asset_request import AssetRequest, AssetRequestStatus
 from app.schemas.asset import AssetPage, AssetRead
-from app.schemas.response import ApiResponse, success_response
+from app.schemas.response import ApiResponse, error_response, success_response
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 ASSET_PAGE_SIZE = 20
+CONSUMING_STATUSES = (
+    AssetRequestStatus.pending,
+    AssetRequestStatus.loaned,
+)
+
+
+def build_consuming_requests_subquery():
+    return (
+        select(
+            AssetRequest.asset_id,
+            func.coalesce(func.sum(AssetRequest.quantity), 0).label("consuming_quantity"),
+        )
+        .where(AssetRequest.status.in_(CONSUMING_STATUSES))
+        .group_by(AssetRequest.asset_id)
+        .subquery()
+    )
+
+
+def build_asset_read(asset: Asset, consuming_quantity: int | None) -> AssetRead:
+    consuming_quantity_value = int(consuming_quantity or 0)
+
+    return AssetRead(
+        id=asset.id,
+        name=asset.name,
+        category=asset.category,
+        status=asset.status,
+        current_stock=asset.current_stock,
+        pending_quantity=consuming_quantity_value,
+        effective_stock=max(asset.current_stock - consuming_quantity_value, 0),
+        created_at=asset.created_at,
+        updated_at=asset.updated_at,
+    )
 
 
 @router.get("", response_model=ApiResponse[AssetPage])
@@ -29,26 +62,18 @@ def list_assets(
     if q:
         filters.append(Asset.name.ilike(f"%{q}%"))
 
-    pending_requests = (
-        select(
-            AssetRequest.asset_id,
-            func.coalesce(func.sum(AssetRequest.quantity), 0).label("pending_quantity"),
-        )
-        .where(AssetRequest.status == AssetRequestStatus.pending)
-        .group_by(AssetRequest.asset_id)
-        .subquery()
-    )
-    pending_quantity = func.coalesce(pending_requests.c.pending_quantity, 0)
+    consuming_requests = build_consuming_requests_subquery()
+    consuming_quantity = func.coalesce(consuming_requests.c.consuming_quantity, 0)
 
     total = db.scalar(select(func.count()).select_from(Asset).where(*filters)) or 0
     total_count = db.scalar(select(func.count()).select_from(Asset)) or 0
-    total_stock = db.scalar(select(func.coalesce(func.sum(Asset.current_stock), 0))) or 0
+    total_stock = db.scalar(select(func.coalesce(func.sum(Asset.current_stock), 0)).select_from(Asset)) or 0
     low_stock_count = (
         db.scalar(
             select(func.count())
             .select_from(Asset)
-            .outerjoin(pending_requests, pending_requests.c.asset_id == Asset.id)
-            .where((Asset.current_stock - pending_quantity) <= 5)
+            .outerjoin(consuming_requests, consuming_requests.c.asset_id == Asset.id)
+            .where((Asset.current_stock - consuming_quantity) <= 5)
         )
         or 0
     )
@@ -64,9 +89,9 @@ def list_assets(
     statement = (
         select(
             Asset,
-            pending_quantity.label("pending_quantity"),
+            consuming_quantity.label("consuming_quantity"),
         )
-        .outerjoin(pending_requests, pending_requests.c.asset_id == Asset.id)
+        .outerjoin(consuming_requests, consuming_requests.c.asset_id == Asset.id)
         .where(*filters)
         .order_by(*order_by_columns)
         .limit(ASSET_PAGE_SIZE)
@@ -74,21 +99,8 @@ def list_assets(
     )
 
     assets = []
-    for asset, pending_quantity in db.execute(statement).all():
-        pending_quantity_value = int(pending_quantity or 0)
-        assets.append(
-            AssetRead(
-                id=asset.id,
-                name=asset.name,
-                category=asset.category,
-                status=asset.status,
-                current_stock=asset.current_stock,
-                pending_quantity=pending_quantity_value,
-                effective_stock=max(asset.current_stock - pending_quantity_value, 0),
-                created_at=asset.created_at,
-                updated_at=asset.updated_at,
-            )
-        )
+    for asset, consuming_quantity_value in db.execute(statement).all():
+        assets.append(build_asset_read(asset, consuming_quantity_value))
 
     return success_response(
         AssetPage(
@@ -102,6 +114,34 @@ def list_assets(
             total_pages=total_pages,
         )
     )
+
+
+@router.get("/{asset_id}", response_model=ApiResponse[AssetRead])
+def get_asset(
+    asset_id: int,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict | JSONResponse:
+    consuming_requests = build_consuming_requests_subquery()
+    consuming_quantity = func.coalesce(consuming_requests.c.consuming_quantity, 0)
+
+    statement = (
+        select(
+            Asset,
+            consuming_quantity.label("consuming_quantity"),
+        )
+        .outerjoin(consuming_requests, consuming_requests.c.asset_id == Asset.id)
+        .where(Asset.id == asset_id)
+    )
+
+    row = db.execute(statement).one_or_none()
+    if row is None:
+        return JSONResponse(
+            status_code=404,
+            content=error_response("ASSET_NOT_FOUND", "指定された備品が見つかりません。"),
+        )
+
+    asset, consuming_quantity_value = row
+    return success_response(build_asset_read(asset, consuming_quantity_value))
 
 
 @router.get("/categories", response_model=ApiResponse[list[str]])

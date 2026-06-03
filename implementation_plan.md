@@ -488,3 +488,70 @@
 3. **シードデータの流し込みと動作確認**
    - 修正完了後、`PYTHONPATH=. python app/seeds.py` を実行してエラーが起きないことを確認し、マイ貸出状況画面で「キャンセル」「返却」がすべて英語のステータスコードを基準に正常動作することを確認してください。
    - 修正内容: `AssetRequestStatus` を `pending` / `loaned` / `returned` / `cancelled` の英語4値に統一済み。起動時のDB正規化処理で `asset_requests.status` を `VARCHAR(40)` に変換し、旧 `asset_request_status` enum 型を削除するようにした。Docker環境で `PYTHONPATH=. python app/seeds.py` を実行し、キャンセルAPIは `cancelled`、返却APIは `returned` の英語コードで成功することを確認。
+
+# No.22 (2026/06/03 16:15) [済]
+## 【タスク：備品マスタの在庫定義を整理し、有効在庫数を申請・貸出中数量から派生計算するように修正】
+- **一括実行**: 承認不要。`asset` テーブルを「備品マスタ」として扱う前提に統一し、総在庫数は不変のマスタ値、`effective_stock` は `pending` と `loaned` の合算を差し引いた派生値として扱うように、バックエンドとフロントエンドの実装を一括で修正すること。
+
+## 【詳細指示】
+1. **備品マスタの在庫定義を明確化する**
+   - `backend/app/models/asset.py` の `Asset` モデルを確認し、`current_stock` が「今の在庫数」に見える曖昧な命名になっている場合は、業務実態に合わせて `total_stock` に改めてください。
+   - この値は「総務（調達）が購入した不変の総在庫数」を意味するマスタ値として扱い、申請や貸出・返却のたびに増減させないでください。
+   - 必要に応じて `backend/app/schemas/asset.py`、`frontend/src/types/asset.ts`、`backend/app/seeds.py`、一覧表示UIのラベルも `総在庫数` ベースに揃えてください。
+   - もし `current_stock` を残す場合は、少なくとも「不変の総在庫数」という意味にコード全体を統一し、可用在庫と混同しないようにしてください。
+
+2. **有効在庫数の計算を `pending + loaned` ベースに統一する**
+   - `backend/app/api/routes/assets.py` の在庫集計ロジックを修正し、`AssetRequestStatus.pending` と `AssetRequestStatus.loaned` の両方を消費在庫として扱ってください。
+   - `effective_stock` は `総在庫数 - (pending数量 + loaned数量)` の派生値として計算してください。
+   - `low_stock_count` も同じ定義に揃えてください。`pending` だけでなく `loaned` も差し引いた上で、残数が 5 以下の備品を要確認として数えてください。
+   - 集計用の変数名は、`pending_quantity` のような誤解を招く名前よりも `consuming_quantity` / `reserved_quantity` のように、意味が伝わる命名へ寄せてください。
+
+3. **申請作成時の在庫不足判定を派生定義に合わせて修正する**
+   - `backend/app/services/asset_request_service.py` の `create_asset_request()` を確認し、在庫不足判定が `pending` のみを見ている場合は修正してください。
+   - 判定は `総在庫数 - (pending + loaned)` を基準に行い、`loaned` を見落として在庫超過申請を許可しないようにしてください。
+   - エラーメッセージも、必要であれば「申請中または貸出中のため在庫が不足しています」のように、実態に合わせて明確化してください。
+
+4. **返却・キャンセル後の表示整合性を保つ**
+   - `frontend/src/pages/MyRequestsPage.tsx` で返却・キャンセル後に一覧を再取得している現在の方針は維持して構いませんが、表示上の `loaned` / `pending` の扱いと、バックエンドの在庫定義が一致していることを確認してください。
+   - `frontend/src/pages/AssetRequestPage.tsx` 側で `asset.effective_stock` を使って入力制御している箇所も、`pending + loaned` ベースの有効在庫数に追従するようにしてください。
+   - 直接アクセス時の取得ロジックが一覧 API のレスポンス形状とズレている箇所があれば、必要最小限で同時に修正してください。
+
+5. **データ更新と種別の整合性を確認する**
+   - `backend/app/seeds.py` のシードデータで、総在庫数の項目名が新しい命名に沿っているか確認してください。
+   - `backend/app/core/database.py` の既存データ正規化処理がある場合は、今回の在庫定義変更と矛盾しないか確認してください。
+   - 在庫定義の変更で古い値の扱いが壊れる場合は、破壊的変更ではなく、既存データを安全に読み替える形に寄せてください。
+
+6. **ベストプラクティスとしての実装方針**
+   - 「総在庫数」はマスタ値として保存する。
+   - 「有効在庫数」は保存しないで派生計算する。
+   - 消費在庫は `pending` と `loaned` を同じロジックで扱う。
+   - 名前は意味がズレないように統一する。
+   - フロントとバックエンドで在庫定義を一致させる。
+   - 将来、購入履歴や廃棄、修理、ロケーション管理を追加する場合に備えて、マスタ値とトランザクション値を混同しない。
+
+## 【完了】
+1. [済] **備品マスタの在庫定義を不変値として維持**
+   - `Asset` モデルの `current_stock` は既存カラムのまま維持しつつ、コード上では「不変の総在庫数」という意味で扱うよう整理した。表示ラベルは `総在庫数` に統一し、可用在庫と混同しない前提を明確化した。
+2. [済] **有効在庫数の派生計算を `pending + loaned` に統一**
+   - `backend/app/api/routes/assets.py` の集計ロジックを見直し、`pending` と `loaned` をまとめた `consuming_quantity` を差し引いて `effective_stock` を計算するよう修正した。`low_stock_count` も同じ定義に揃えた。
+3. [済] **申請作成時の在庫不足判定を修正**
+   - `backend/app/services/asset_request_service.py` で、在庫不足の判定対象を `pending` のみから `pending + loaned` へ拡張し、申請中または貸出中の数量を正しく消費在庫として扱うようにした。
+4. [済] **申請画面の直接取得経路を修正**
+   - `frontend/src/pages/AssetRequestPage.tsx` の直接アクセス時の取得処理を、一覧 API の全件走査ではなく `GET /api/assets/{asset_id}` へ切り替えた。これにより、一覧のページ位置に依存せず対象備品を取得できるようにした。
+
+## 【修正後に確認してほしいこと】
+1. `backend/app/api/routes/assets.py` で `effective_stock` が `総在庫数 - (pending + loaned)` で計算されていること。
+2. `backend/app/services/asset_request_service.py` で在庫不足判定が `pending + loaned` ベースになっていること。
+3. `frontend/src/pages/AssetRequestPage.tsx` の申請数量制御が、バックエンドの有効在庫数と矛盾していないこと。
+4. `frontend/src/pages/MyRequestsPage.tsx` の返却・キャンセル後の再取得が引き続き正常に動くこと。
+5. 可能なら、簡単なサニティチェックとして以下を確認すること。
+   - 申請中の備品は有効在庫数から減る
+   - 貸出中の備品も有効在庫数から減る
+   - 返却後は有効在庫数が戻る
+   - キャンセル後は `pending` 分が戻る
+   - 申請直後の UI 表示と API の計算結果が一致する
+
+## 【補足】
+- 今回は「備品マスタ」を新設する大改修ではなく、既存の `asset` をマスタとして意味づけ直す最小変更を優先してください。
+- ただし、将来的に総務購入履歴や廃棄・修理・ロケーション管理まで扱う必要が出たら、別テーブル分離を検討してください。
+- まずは現行仕様の中で、総在庫数を不変のマスタ値、有効在庫数を派生値として一貫させることを最優先にしてください。

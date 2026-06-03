@@ -55,14 +55,9 @@ export function AssetRequestPage() {
       setErrorMessage(null);
 
       try {
-        const assets = await apiFetch<Asset[]>("/api/assets", {
+        const foundAsset = await apiFetch<Asset>(`/api/assets/${numericAssetId}`, {
           signal: abortController.signal,
         });
-        const foundAsset = assets.find((item) => item.id === numericAssetId) ?? null;
-
-        if (!foundAsset) {
-          setErrorMessage("指定された備品が見つかりません。");
-        }
 
         setAsset(foundAsset);
       } catch (error) {
@@ -70,7 +65,11 @@ export function AssetRequestPage() {
           return;
         }
 
-        setErrorMessage(error instanceof ApiClientError ? error.message : "備品情報の取得に失敗しました。");
+        if (error instanceof ApiClientError && error.status === 404) {
+          setErrorMessage("指定された備品が見つかりません。");
+        } else {
+          setErrorMessage(error instanceof ApiClientError ? error.message : "備品情報の取得に失敗しました。");
+        }
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoadingAsset(false);
