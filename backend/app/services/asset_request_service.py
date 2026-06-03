@@ -64,7 +64,7 @@ def create_asset_request(db: Session, payload: AssetRequestCreate) -> AssetReque
                 ),
             )
         )
-        available_quantity = asset.current_stock - int(consuming_quantity or 0)
+        available_quantity = asset.total_stock - int(consuming_quantity or 0)
 
         if available_quantity < payload.quantity:
             raise InsufficientReservedStockError("現在、他の方が申請中または貸出中のため在庫が不足しています")

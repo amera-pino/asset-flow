@@ -171,7 +171,7 @@ export function AssetRequestPage() {
         currentAsset
           ? {
               ...currentAsset,
-              pending_quantity: currentAsset.pending_quantity + quantity,
+              consuming_quantity: currentAsset.consuming_quantity + quantity,
               effective_stock: Math.max(currentAsset.effective_stock - quantity, 0),
             }
           : currentAsset,

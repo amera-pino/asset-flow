@@ -39,9 +39,9 @@ def build_asset_read(asset: Asset, consuming_quantity: int | None) -> AssetRead:
         name=asset.name,
         category=asset.category,
         status=asset.status,
-        current_stock=asset.current_stock,
-        pending_quantity=consuming_quantity_value,
-        effective_stock=max(asset.current_stock - consuming_quantity_value, 0),
+        total_stock=asset.total_stock,
+        consuming_quantity=consuming_quantity_value,
+        effective_stock=max(asset.total_stock - consuming_quantity_value, 0),
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )
@@ -67,13 +67,13 @@ def list_assets(
 
     total = db.scalar(select(func.count()).select_from(Asset).where(*filters)) or 0
     total_count = db.scalar(select(func.count()).select_from(Asset)) or 0
-    total_stock = db.scalar(select(func.coalesce(func.sum(Asset.current_stock), 0)).select_from(Asset)) or 0
+    total_stock = db.scalar(select(func.coalesce(func.sum(Asset.total_stock), 0)).select_from(Asset)) or 0
     low_stock_count = (
         db.scalar(
             select(func.count())
             .select_from(Asset)
             .outerjoin(consuming_requests, consuming_requests.c.asset_id == Asset.id)
-            .where((Asset.current_stock - consuming_quantity) <= 5)
+            .where((Asset.total_stock - consuming_quantity) <= 5)
         )
         or 0
     )
@@ -116,6 +116,13 @@ def list_assets(
     )
 
 
+@router.get("/categories", response_model=ApiResponse[list[str]])
+def list_asset_categories(db: Annotated[Session, Depends(get_db)]) -> dict:
+    categories = db.scalars(select(Asset.category).distinct().order_by(Asset.category.asc())).all()
+
+    return success_response(list(categories))
+
+
 @router.get("/{asset_id}", response_model=ApiResponse[AssetRead])
 def get_asset(
     asset_id: int,
@@ -142,10 +149,3 @@ def get_asset(
 
     asset, consuming_quantity_value = row
     return success_response(build_asset_read(asset, consuming_quantity_value))
-
-
-@router.get("/categories", response_model=ApiResponse[list[str]])
-def list_asset_categories(db: Annotated[Session, Depends(get_db)]) -> dict:
-    categories = db.scalars(select(Asset.category).distinct().order_by(Asset.category.asc())).all()
-
-    return success_response(list(categories))

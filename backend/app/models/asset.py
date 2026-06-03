@@ -20,7 +20,7 @@ class Asset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(80), nullable=False)
-    current_stock: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_stock: Mapped[int] = mapped_column("current_stock", Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="available")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

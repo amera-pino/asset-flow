@@ -555,3 +555,65 @@
 - 今回は「備品マスタ」を新設する大改修ではなく、既存の `asset` をマスタとして意味づけ直す最小変更を優先してください。
 - ただし、将来的に総務購入履歴や廃棄・修理・ロケーション管理まで扱う必要が出たら、別テーブル分離を検討してください。
 - まずは現行仕様の中で、総在庫数を不変のマスタ値、有効在庫数を派生値として一貫させることを最優先にしてください。
+
+
+# No.23 (2026/06/03 17:00) [済]
+## 【タスク：在庫定義の命名ズレを解消し、総在庫数・消費中数量・有効在庫数の意味をコード全体で統一する】
+- **一括実行**: 承認不要。No.22 で在庫計算ロジック自体は正しくなっているため、今回は `current_stock` / `pending_quantity` という誤解を招く命名を整理し、総在庫数・消費中数量・有効在庫数の意味をコード全体で一致させること。
+
+## 【詳細指示】
+1. **`current_stock` の意味を「総在庫数」として明確化する**
+   - `backend/app/models/asset.py` の `Asset.current_stock` が「総務（調達）が購入した不変の総在庫数」を意味するなら、その意味がコード全体で誤読されないようにしてください。
+   - 可能であれば `current_stock` を `total_stock` に改名し、少なくとも以下も追従してください。
+     - `backend/app/schemas/asset.py`
+     - `frontend/src/types/asset.ts`
+     - `backend/app/seeds.py`
+     - 必要に応じて `frontend/src/pages/AssetListPage.tsx`
+     - 必要に応じて `frontend/src/pages/AssetRequestPage.tsx`
+   - 改名が大きい場合でも、コメントや表示名で「これは総在庫数であり可用在庫ではない」と分かるようにしてください。
+
+2. **`pending_quantity` を `consuming_quantity` に寄せる**
+   - `backend/app/api/routes/assets.py` では、実際には `pending + loaned` の合算を集計しているため、`pending_quantity` は誤解を招きます。
+   - 集計用の変数名、`label()` 名、`build_asset_read()` の引数名を `consuming_quantity` に統一してください。
+   - `backend/app/schemas/asset.py` の `AssetRead` も、必要なら `pending_quantity` ではなく `consuming_quantity` に変更してください。
+   - フロント側の `frontend/src/types/asset.ts` と参照箇所も同時に追従してください。
+   - ただし、`effective_stock` はそのままで構いません。
+
+3. **申請詳細ページのローカル更新も意味に合わせる**
+   - `frontend/src/pages/AssetRequestPage.tsx` の `handleSubmit()` でローカル state 更新をしているなら、`pending_quantity` という古い名前を使わず、`consuming_quantity` に合わせてください。
+   - もし遷移がすぐ走るなら、ローカル更新を削除しても構いません。
+   - どちらでも、画面の意図と変数名が一致することを優先してください。
+
+4. **ベストプラクティス**
+   - `current_stock` は「今の在庫」ではなく「総在庫数」として意味を固定する。
+   - `pending_quantity` は「承認待ち数量」だけを指す名前なので、`pending + loaned` を含むなら使わない。
+   - `consuming_quantity` は「在庫を消費している数量」という意味で今回の集計に最も合う。
+   - `effective_stock` は派生値として維持してよい。
+   - 名前が実装の意味と一致するように統一し、将来の保守で誤読が起きない状態にする。
+
+## 【修正後に確認してほしいこと】
+1. `backend/app/api/routes/assets.py` の集計変数名が `consuming_quantity` に統一されていること。
+2. `backend/app/schemas/asset.py` と `frontend/src/types/asset.ts` のフィールド名が必要に応じて追従していること。
+3. `AssetRequestPage` のローカル更新が残っている場合、その変数名が意味に一致していること。
+4. `current_stock` が残るなら、その意味が「総在庫数」であるとコードを読んだ時に分かること。
+5. 申請一覧・備品一覧・申請画面の表示結果が、命名変更後も同じ意味で理解できること。
+
+## 【補足】
+- 今回は挙動修正ではなく、意味のズレを解消する命名・契約整理が主目的です。
+- No.22 で在庫計算は正しくなっているので、そのロジック自体は壊さず、名前だけを意味に合わせてください。
+- 名前変更でレスポンス契約が崩れる場合は、フロントとバックエンドを同時に修正してください。
+
+## 【完了】
+1. [済] **`current_stock` をコード上の総在庫数へ改名**
+   - `Asset.total_stock` を既存DBカラム `current_stock` にマップし、物理データ互換を保ったままコード上の意味を「総在庫数」に統一した。
+   - `backend/app/schemas/asset.py`、`backend/app/seeds.py`、在庫集計・申請時在庫判定の参照を `total_stock` に追従した。
+2. [済] **`pending_quantity` を `consuming_quantity` へ統一**
+   - `AssetRead` のAPI契約を `consuming_quantity` に変更し、`backend/app/api/routes/assets.py` の集計ラベル・レスポンス生成と `frontend/src/types/asset.ts` を同時に更新した。
+   - `frontend/src/pages/AssetRequestPage.tsx` の申請後ローカル更新も `consuming_quantity` に変更した。
+3. [済] **備品一覧カテゴリAPIのルート順序を修正**
+   - `/api/assets/categories` が `/{asset_id}` に誤マッチして 422 になる問題を避けるため、固定パスのルートを動的IDルートより前に移動した。
+4. [済] **確認**
+   - `npm run build` 成功。
+   - `PYTHONPYCACHEPREFIX=/private/tmp/asset-flow-pycache python3 -m compileall backend/app` 成功。
+   - Docker内で `PYTHONPATH=. python app/seeds.py` 成功。
+   - Docker内から `GET /api/assets?page=1` と `GET /api/assets/categories` を確認し、`total_stock` / `consuming_quantity` が返り、旧 `current_stock` / `pending_quantity` がレスポンスに含まれないことを確認。

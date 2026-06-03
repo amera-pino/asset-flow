@@ -10,13 +10,13 @@ class AssetBase(BaseModel):
 
 
 class AssetCreate(AssetBase):
-    current_stock: int = Field(ge=1)
+    total_stock: int = Field(ge=1)
 
 
 class AssetRead(AssetBase):
     id: int
-    current_stock: int = Field(ge=0)
-    pending_quantity: int = Field(ge=0)
+    total_stock: int = Field(ge=0)
+    consuming_quantity: int = Field(ge=0)
     effective_stock: int = Field(ge=0)
     created_at: datetime
     updated_at: datetime
