@@ -188,26 +188,39 @@ export function AssetListPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-teal-700">AssetFlow</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">備品一覧</h1>
-          </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-6 py-6">
+        <header className="border-b border-slate-200 pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div>
+                <p className="text-sm font-medium text-teal-700">AssetFlow</p>
+                <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">備品一覧</h1>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:flex">
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">取扱品目数</p>
-              <p className="mt-1 text-lg font-semibold">{totalItemCount}</p>
+              <div className="grid grid-cols-2 gap-2 sm:flex">
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">取扱品目数</p>
+                <p className="mt-1 text-lg font-semibold">{totalItemCount}</p>
+              </div>
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">総在庫数</p>
+                <p className="mt-1 text-lg font-semibold">{totalStock}</p>
+              </div>
+                <div className="min-w-24 rounded-md border border-slate-200 bg-white px-3 py-2">
+                <p className="text-xs text-slate-500">要確認</p>
+                <p className="mt-1 text-lg font-semibold text-red-600">{lowStockCount}</p>
+                </div>
+              </div>
             </div>
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">総在庫数</p>
-              <p className="mt-1 text-lg font-semibold">{totalStock}</p>
-            </div>
-            <div className="min-w-28 rounded-md border border-slate-200 bg-white px-4 py-3">
-              <p className="text-xs text-slate-500">要確認</p>
-              <p className="mt-1 text-lg font-semibold text-red-600">{lowStockCount}</p>
-            </div>
+
+            <nav aria-label="メインナビゲーション" className="flex flex-wrap justify-start gap-2 lg:justify-end">
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/my-requests"
+              >
+                マイ貸出状況
+              </Link>
+            </nav>
           </div>
         </header>
 
@@ -241,7 +254,7 @@ export function AssetListPage() {
                 ))}
               </select>
 
-              <label className="relative block w-full">
+              <label className="relative block w-full md:w-64">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={query}

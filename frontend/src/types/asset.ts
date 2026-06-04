@@ -2,8 +2,8 @@ export type Asset = {
   id: number;
   name: string;
   category: string;
-  current_stock: number;
-  pending_quantity: number;
+  total_stock: number;
+  consuming_quantity: number;
   effective_stock: number;
   status: string;
   created_at: string;

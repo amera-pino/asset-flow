@@ -1,6 +1,6 @@
 import { CalendarDays, PackageSearch } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { Asset } from "../types/asset";
@@ -55,14 +55,9 @@ export function AssetRequestPage() {
       setErrorMessage(null);
 
       try {
-        const assets = await apiFetch<Asset[]>("/api/assets", {
+        const foundAsset = await apiFetch<Asset>(`/api/assets/${numericAssetId}`, {
           signal: abortController.signal,
         });
-        const foundAsset = assets.find((item) => item.id === numericAssetId) ?? null;
-
-        if (!foundAsset) {
-          setErrorMessage("指定された備品が見つかりません。");
-        }
 
         setAsset(foundAsset);
       } catch (error) {
@@ -70,7 +65,11 @@ export function AssetRequestPage() {
           return;
         }
 
-        setErrorMessage(error instanceof ApiClientError ? error.message : "備品情報の取得に失敗しました。");
+        if (error instanceof ApiClientError && error.status === 404) {
+          setErrorMessage("指定された備品が見つかりません。");
+        } else {
+          setErrorMessage(error instanceof ApiClientError ? error.message : "備品情報の取得に失敗しました。");
+        }
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoadingAsset(false);
@@ -172,7 +171,7 @@ export function AssetRequestPage() {
         currentAsset
           ? {
               ...currentAsset,
-              pending_quantity: currentAsset.pending_quantity + quantity,
+              consuming_quantity: currentAsset.consuming_quantity + quantity,
               effective_stock: Math.max(currentAsset.effective_stock - quantity, 0),
             }
           : currentAsset,
@@ -197,6 +196,20 @@ export function AssetRequestPage() {
               <p className="text-sm font-medium text-teal-700">AssetFlow</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-normal text-slate-950">備品貸出申請</h1>
             </div>
+            <nav aria-label="メインナビゲーション" className="flex flex-wrap gap-2 md:justify-end">
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/"
+              >
+                備品一覧
+              </Link>
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                to="/my-requests"
+              >
+                マイ貸出状況
+              </Link>
+            </nav>
           </div>
         </header>
 

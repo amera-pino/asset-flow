@@ -23,13 +23,20 @@ class AssetRequestCreate(BaseModel):
 class AssetRequestRead(BaseModel):
     id: int
     asset_id: int
+    user_id: int
     requester_name: str
     start_date: date
     end_date: date
     reason: str
     quantity: int
     status: AssetRequestStatus
+    returned_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ActiveAssetRequestRead(AssetRequestRead):
+    asset_name: str
+    asset_category: str
