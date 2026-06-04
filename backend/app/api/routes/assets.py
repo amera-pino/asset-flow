@@ -19,6 +19,7 @@ CONSUMING_STATUSES = (
 )
 
 
+# 申請中・貸出中の数量を備品ごとに集計する SQL 部品
 def build_consuming_requests_subquery():
     return (
         select(
@@ -31,6 +32,7 @@ def build_consuming_requests_subquery():
     )
 
 
+# DB モデルと消費中数量から、画面用の在庫計算済みレスポンスを作る
 def build_asset_read(asset: Asset, consuming_quantity: int | None) -> AssetRead:
     consuming_quantity_value = int(consuming_quantity or 0)
 
@@ -47,6 +49,7 @@ def build_asset_read(asset: Asset, consuming_quantity: int | None) -> AssetRead:
     )
 
 
+# 備品一覧画面の HTTP 入口として検索・カテゴリ・ページ条件で備品を返す
 @router.get("", response_model=ApiResponse[AssetPage])
 def list_assets(
     db: Annotated[Session, Depends(get_db)],
@@ -116,6 +119,7 @@ def list_assets(
     )
 
 
+# 一覧画面のカテゴリ絞り込み候補を返す HTTP 入口
 @router.get("/categories", response_model=ApiResponse[list[str]])
 def list_asset_categories(db: Annotated[Session, Depends(get_db)]) -> dict:
     categories = db.scalars(select(Asset.category).distinct().order_by(Asset.category.asc())).all()
@@ -123,6 +127,7 @@ def list_asset_categories(db: Annotated[Session, Depends(get_db)]) -> dict:
     return success_response(list(categories))
 
 
+# 申請画面が直接開かれたときに指定 ID の備品と有効在庫を返す HTTP 入口
 @router.get("/{asset_id}", response_model=ApiResponse[AssetRead])
 def get_asset(
     asset_id: int,

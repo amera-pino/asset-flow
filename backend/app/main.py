@@ -12,6 +12,7 @@ from app.core.database import create_tables
 from app.schemas.response import error_response, success_response
 
 
+# API 起動時に DB テーブルを用意するアプリ全体の入口処理
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables()
@@ -34,6 +35,7 @@ app.include_router(assets.router, prefix="/api")
 app.include_router(requests.router, prefix="/api")
 
 
+# FastAPI の入力検証エラーを共通エラー形式に変換する
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
@@ -46,6 +48,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+# DB 層の例外を API 共通レスポンスの 500 エラーに変換する
 @app.exception_handler(SQLAlchemyError)
 async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
     return JSONResponse(
@@ -57,6 +60,7 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
     )
 
 
+# 稼働確認用の軽量なヘルスチェックエンドポイント
 @app.get("/health")
 def health() -> dict:
     return success_response({"status": "ok"})

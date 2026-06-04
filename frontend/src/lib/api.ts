@@ -4,12 +4,14 @@ type ApiError = {
   details?: unknown;
 };
 
+// バックエンド共通レスポンスの success/data/error 形式
 type ApiResponse<T> = {
   success: boolean;
   data: T | null;
   error: ApiError | null;
 };
 
+// 画面側で API エラー表示に使う標準エラー
 export class ApiClientError extends Error {
   code: string;
   status: number;
@@ -31,6 +33,7 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   query?: Record<string, string | number | null | undefined>;
 };
 
+// 画面から渡された検索・ページ条件を API URL に変換する
 function buildUrl(path: string, query?: RequestOptions["query"]) {
   const url = new URL(path, API_BASE_URL);
 
@@ -43,6 +46,7 @@ function buildUrl(path: string, query?: RequestOptions["query"]) {
   return url.toString();
 }
 
+// JSON 送信、クエリ付与、共通レスポンスのエラー処理を標準化する
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, query, ...requestInit } = options;
   const response = await fetch(buildUrl(path, query), {

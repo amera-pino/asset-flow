@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
+# 貸出申請の状態遷移で使う DB 上のステータス値
 class AssetRequestStatus(StrEnum):
     pending = "pending"
     loaned = "loaned"
@@ -26,6 +27,7 @@ class AssetRequestStatus(StrEnum):
     cancelled = "cancelled"
 
 
+# asset_requests テーブルを表す DB モデルで、申請・返却・取消の状態を保持する
 class AssetRequest(Base):
     __tablename__ = "asset_requests"
     __table_args__ = (

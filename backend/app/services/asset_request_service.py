@@ -8,6 +8,7 @@ from app.models.asset_request import AssetRequest, AssetRequestStatus
 from app.schemas.asset_request import AssetRequestCreate
 
 
+# route 層で HTTP エラーへ変換する業務エラーの基底
 class AssetRequestError(Exception):
     code = "ASSET_REQUEST_ERROR"
     status_code = 400
@@ -17,31 +18,37 @@ class AssetRequestError(Exception):
         super().__init__(message)
 
 
+# 申請対象の備品が存在しない場合の業務エラー
 class AssetNotFoundError(AssetRequestError):
     code = "ASSET_NOT_FOUND"
     status_code = 404
 
 
+# 有効在庫不足で申請できない場合の業務エラー
 class InsufficientReservedStockError(AssetRequestError):
     code = "INSUFFICIENT_STOCK"
     status_code = 409
 
 
+# 返却・取消対象の申請が見つからない場合の業務エラー
 class ActiveAssetRequestNotFoundError(AssetRequestError):
     code = "ACTIVE_REQUEST_NOT_FOUND"
     status_code = 404
 
 
+# 貸出中以外を返却しようとした場合の業務エラー
 class AssetRequestReturnError(AssetRequestError):
     code = "ASSET_REQUEST_NOT_RETURNABLE"
     status_code = 409
 
 
+# 承認待ち以外をキャンセルしようとした場合の業務エラー
 class AssetRequestCancelError(AssetRequestError):
     code = "ASSET_REQUEST_NOT_CANCELABLE"
     status_code = 409
 
 
+# 在庫をロックして消費中数量を確認し、承認待ち申請を作成する業務処理
 def create_asset_request(db: Session, payload: AssetRequestCreate) -> AssetRequest:
     with db.begin():
         asset = db.scalar(
@@ -86,6 +93,7 @@ def create_asset_request(db: Session, payload: AssetRequestCreate) -> AssetReque
         return asset_request
 
 
+# マイ貸出状況に出す承認待ち・貸出中申請を備品情報付きで取得する
 def list_active_asset_requests(db: Session, user_id: int = 1) -> list[tuple[AssetRequest, Asset]]:
     return list(
         db.execute(
@@ -105,6 +113,7 @@ def list_active_asset_requests(db: Session, user_id: int = 1) -> list[tuple[Asse
     )
 
 
+# 貸出中申請だけを返却済みに状態遷移させる業務処理
 def return_asset_request(db: Session, request_id: int, user_id: int = 1) -> AssetRequest:
     with db.begin():
         asset_request = db.scalar(
@@ -130,6 +139,7 @@ def return_asset_request(db: Session, request_id: int, user_id: int = 1) -> Asse
         return asset_request
 
 
+# 承認待ち申請だけをキャンセル済みに状態遷移させる業務処理
 def cancel_asset_request(db: Session, request_id: int, user_id: int = 1) -> AssetRequest:
     with db.begin():
         asset_request = db.scalar(

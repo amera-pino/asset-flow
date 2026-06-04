@@ -18,6 +18,7 @@ type AssetPageResponse = {
 
 type NameSort = "" | "name_asc" | "name_desc";
 
+// 一覧の在庫数に応じた警告色を決める
 function stockClassName(stock: number) {
   if (stock === 0) {
     return "text-red-700";
@@ -30,6 +31,7 @@ function stockClassName(stock: number) {
   return "text-slate-900";
 }
 
+// 有効在庫から一覧表示用の貸出状態ラベルを作る
 function statusLabel(asset: Asset) {
   if (asset.effective_stock === 0) {
     return "予約満了";
@@ -38,6 +40,7 @@ function statusLabel(asset: Asset) {
   return asset.status === "available" ? "貸出可能" : asset.status;
 }
 
+// 備品一覧を表示し、カテゴリ・検索・並び替え・ページング条件で /api/assets を読む画面
 export function AssetListPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -59,6 +62,7 @@ export function AssetListPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
 
+  // 申請画面から戻ったときの申請完了トーストを表示する
   useEffect(() => {
     if (!locationState?.toastRequestId) {
       return;
@@ -68,6 +72,7 @@ export function AssetListPage() {
     navigate(location.pathname, { replace: true, state: null });
   }, [location.pathname, locationState?.toastRequestId, navigate]);
 
+  // トーストの表示アニメーションと自動非表示を管理する
   useEffect(() => {
     if (!toastMessage) {
       return;
@@ -88,6 +93,7 @@ export function AssetListPage() {
     };
   }, [toastMessage]);
 
+  // 一覧の絞り込みプルダウンに使うカテゴリ一覧を API から取得する
   useEffect(() => {
     const abortController = new AbortController();
 
@@ -113,6 +119,7 @@ export function AssetListPage() {
     };
   }, []);
 
+  // 検索条件・ページ・並び替えに応じて備品一覧と集計値を API から取得する
   useEffect(() => {
     const abortController = new AbortController();
     const timeoutId = window.setTimeout(async () => {
@@ -164,6 +171,7 @@ export function AssetListPage() {
     return Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
   }, [currentPage, totalPages]);
 
+  // ページ番号を範囲内に丸めて一覧の表示ページを切り替える
   function handlePageChange(page: number) {
     const nextPage = Math.max(1, Math.min(page, totalPages));
 
@@ -175,6 +183,7 @@ export function AssetListPage() {
     window.scrollTo({ top: 0 });
   }
 
+  // カテゴリ・検索語・並び替えを初期化して 1 ページ目に戻す
   function handleClearSearch() {
     setSelectedCategory("");
     setQuery("");
@@ -182,6 +191,7 @@ export function AssetListPage() {
     setCurrentPage(1);
   }
 
+  // 備品名の昇順・降順ソートを切り替える
   function handleNameSortToggle() {
     setNameSort((sort) => (sort === "name_asc" ? "name_desc" : "name_asc"));
   }

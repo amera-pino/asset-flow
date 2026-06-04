@@ -7,6 +7,7 @@ import { AssetRequestPage } from "./pages/AssetRequestPage";
 import { MyRequestsPage } from "./pages/MyRequestsPage";
 import "./index.css";
 
+// URL ごとの画面コンポーネントを定義する React 側の入口
 function App() {
   return (
     <BrowserRouter>

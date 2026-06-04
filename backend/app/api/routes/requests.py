@@ -19,6 +19,7 @@ router = APIRouter(prefix="/requests", tags=["requests"])
 CURRENT_USER_ID = 1
 
 
+# 申請画面からの POST を受け、service 層で在庫判定して申請を作る
 @router.post("", response_model=ApiResponse[AssetRequestRead], status_code=201)
 def create_request(
     payload: AssetRequestCreate,
@@ -35,6 +36,7 @@ def create_request(
     return success_response(AssetRequestRead.model_validate(asset_request))
 
 
+# マイ貸出状況画面へ承認待ち・貸出中の申請を返す
 @router.get("/me/active", response_model=ApiResponse[list[ActiveAssetRequestRead]])
 def list_my_active_requests(db: Annotated[Session, Depends(get_db)]) -> dict:
     active_requests = [
@@ -49,6 +51,7 @@ def list_my_active_requests(db: Annotated[Session, Depends(get_db)]) -> dict:
     return success_response(active_requests)
 
 
+# 返却ボタンからの POST を受け、service 層で返却状態へ遷移する
 @router.post("/{request_id}/return", response_model=ApiResponse[AssetRequestRead])
 def return_request(
     request_id: int,
@@ -65,6 +68,7 @@ def return_request(
     return success_response(AssetRequestRead.model_validate(asset_request))
 
 
+# キャンセルボタンからの POST を受け、service 層で承認待ち申請を取り消す
 @router.post("/{request_id}/cancel", response_model=ApiResponse[AssetRequestRead])
 def cancel_request(
     request_id: int,

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
+# assets テーブルを表す DB モデルで、備品一覧・申請画面の元データ
 class Asset(Base):
     __tablename__ = "assets"
     __table_args__ = (
