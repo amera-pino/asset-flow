@@ -12,6 +12,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiClientError, apiFetch } from "../lib/api";
 import type { Asset } from "../types/asset";
 
+// 備品一覧APIの返却データ型
 type AssetPageResponse = {
   items: Asset[];
   total: number;
