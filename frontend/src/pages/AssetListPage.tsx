@@ -24,6 +24,7 @@ type AssetPageResponse = {
   total_pages: number;
 };
 
+// 備品名ソートの状態を表す型
 type NameSort = "" | "name_asc" | "name_desc";
 
 // 一覧の在庫数に応じた警告色を決める
