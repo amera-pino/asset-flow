@@ -1,3 +1,4 @@
+// API通信失敗時に返るバックエンドの error オブジェクト型
 type ApiError = {
   code: string;
   message: string;
