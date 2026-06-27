@@ -8,6 +8,7 @@ import type { ActiveAssetRequest, AssetRequest } from "../types/assetRequest";
 type StatusFilter = "all" | "loaned" | "pending";
 const REQUEST_PAGE_SIZE = 20;
 
+// API の申請ステータスを画面表示用ラベルに変換する
 function statusDisplayLabel(status: ActiveAssetRequest["status"]) {
   if (status === "pending") {
     return "承認待ち";
@@ -28,10 +29,12 @@ function statusDisplayLabel(status: ActiveAssetRequest["status"]) {
   return status;
 }
 
+// トースト表示用に申請IDを 5 桁へ整形する
 function formatRequestId(id: number) {
   return String(id).padStart(5, "0");
 }
 
+// 自分の承認待ち・貸出中申請を表示し、返却・キャンセル API を操作する画面
 export function MyRequestsPage() {
   const [activeRequests, setActiveRequests] = useState<ActiveAssetRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -45,6 +48,7 @@ export function MyRequestsPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isToastVisible, setIsToastVisible] = useState(false);
 
+  // マイ貸出状況の元データを /api/requests/me/active から取得する
   const fetchActiveRequests = useCallback(async (signal?: AbortSignal) => {
     const data = await apiFetch<ActiveAssetRequest[]>("/api/requests/me/active", { signal });
     setActiveRequests(data);
@@ -94,6 +98,7 @@ export function MyRequestsPage() {
     ? `${activeRequests[0].requester_name} (ID: 1)`
     : "テストユーザー (ID: 1)";
 
+  // 初回表示時にアクティブな申請一覧を読み込む
   useEffect(() => {
     const abortController = new AbortController();
 
@@ -123,6 +128,7 @@ export function MyRequestsPage() {
     };
   }, [fetchActiveRequests]);
 
+  // 返却・キャンセル完了トーストの表示と自動非表示を管理する
   useEffect(() => {
     if (!toastMessage) {
       return;
@@ -143,12 +149,14 @@ export function MyRequestsPage() {
     };
   }, [toastMessage]);
 
+  // 絞り込み後に現在ページが範囲外になった場合、最終ページへ戻す
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
 
+  // 貸出中の申請を /api/requests/{id}/return で返却済みにする
   async function handleReturn(request: ActiveAssetRequest) {
     if (returningRequestId !== null || cancellingRequestId !== null) {
       return;
@@ -176,6 +184,7 @@ export function MyRequestsPage() {
     }
   }
 
+  // 承認待ちの申請を /api/requests/{id}/cancel でキャンセルする
   async function handleCancelRequest(request: ActiveAssetRequest) {
     if (returningRequestId !== null || cancellingRequestId !== null) {
       return;
@@ -203,6 +212,7 @@ export function MyRequestsPage() {
     }
   }
 
+  // 状態・カテゴリ・検索語を初期化して全件表示へ戻す
   function handleClearFilters() {
     setStatusFilter("all");
     setSelectedCategory("");
@@ -210,6 +220,7 @@ export function MyRequestsPage() {
     setCurrentPage(1);
   }
 
+  // 絞り込み後の件数に合わせて表示ページを切り替える
   function handlePageChange(page: number) {
     const nextPage = Math.max(1, Math.min(page, totalPages));
 

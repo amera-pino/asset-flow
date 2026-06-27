@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.asset_request import AssetRequestStatus
 
 
+# 申請画面から受け取る POST /api/requests の入力スキーマ
 class AssetRequestCreate(BaseModel):
     asset_id: int = Field(ge=1)
     requester_name: str = Field(min_length=1, max_length=120)
@@ -13,6 +14,7 @@ class AssetRequestCreate(BaseModel):
     reason: str = Field(min_length=1)
     quantity: int = Field(ge=1)
 
+    # 申請期間が逆転していないことを API 入力時点で検証する
     @model_validator(mode="after")
     def validate_date_range(self) -> "AssetRequestCreate":
         if self.end_date < self.start_date:
@@ -20,6 +22,7 @@ class AssetRequestCreate(BaseModel):
         return self
 
 
+# 申請作成・返却・取消 API で返す貸出申請レスポンス
 class AssetRequestRead(BaseModel):
     id: int
     asset_id: int
@@ -37,6 +40,7 @@ class AssetRequestRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# マイ貸出状況画面向けに備品名・カテゴリを足したレスポンス
 class ActiveAssetRequestRead(AssetRequestRead):
     asset_name: str
     asset_category: str

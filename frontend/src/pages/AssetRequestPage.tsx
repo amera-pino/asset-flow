@@ -10,10 +10,12 @@ type LocationState = {
   asset?: Asset;
 };
 
+// 申請フォームの日付初期値を YYYY-MM-DD で作る
 function todayString() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// 備品詳細と申請フォームを表示し、POST /api/requests で借用申請する画面
 export function AssetRequestPage() {
   const { assetId } = useParams();
   const location = useLocation();
@@ -34,6 +36,7 @@ export function AssetRequestPage() {
 
   const numericAssetId = useMemo(() => Number(assetId), [assetId]);
 
+  // 申請成功後の遷移タイマーをアンマウント時に片付ける
   useEffect(() => {
     return () => {
       if (redirectTimerRef.current !== null) {
@@ -42,6 +45,7 @@ export function AssetRequestPage() {
     };
   }, []);
 
+  // 一覧から渡されなかった備品情報を /api/assets/{id} から取得する
   useEffect(() => {
     if (asset || !Number.isInteger(numericAssetId)) {
       setIsLoadingAsset(false);
@@ -84,6 +88,7 @@ export function AssetRequestPage() {
     };
   }, [asset, numericAssetId]);
 
+  // 申請フォームの入力値とエラーを初期状態に戻す
   function resetForm() {
     if (isSubmitting) {
       return;
@@ -98,6 +103,7 @@ export function AssetRequestPage() {
     setErrorMessage(null);
   }
 
+  // 入力値と有効在庫から、送信前に表示する検証メッセージを決める
   const validationMessage = useMemo(() => {
     if (!Number.isInteger(numericAssetId)) {
       return "備品IDが正しくありません。";
@@ -142,6 +148,7 @@ export function AssetRequestPage() {
     return null;
   }, [asset, endDate, numericAssetId, quantity, reason, requesterName, startDate]);
 
+  // フォーム内容を POST /api/requests へ送り、成功時は一覧へ戻す
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 

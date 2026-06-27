@@ -1,3 +1,4 @@
+// 備品一覧・申請画面で表示する在庫計算済みの備品データ
 export type Asset = {
   id: number;
   name: string;
