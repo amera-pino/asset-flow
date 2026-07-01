@@ -20,6 +20,5 @@ frontend/.env
 .DS_Store
 Thumbs.db
 
-# その他
-*.code-workspace
+# その他ファイル
 .vscode/
